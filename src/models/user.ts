@@ -1,61 +1,53 @@
-const mongoose = require("mongoose");
-const Schema = mongoose.Schema;
-import * as crypto from "crypto";
-const { v4: uuidv4 } = require("uuid");
-uuidv4();
+import mongoose, { Schema, Document } from 'mongoose';
+import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 
-const userSchema = new Schema(
-    {
-      email: {
-        type: String,
-        required: true,
-        unique: true,
-      },
-      encry_password: {
-        type: String,
-        required: false,
-      },
-      salt: String,
-      role: {
-        type: Number,
-        default: 0,
-      },
-      purchases: {
-        type: Array,
-        default: [],
-      }
-    },
-    { timestamps: true }
-  );
+// Define an interface for the user document
+export interface IUser extends Document {
+  _password: string;
+  authenticate: (plainPassword: string) => boolean;
+  name: string;
+  email: string;
+  encry_password: string;
+  role: number;
+  salt: string;
+  securePassword: (plainPassword: string) => string;
+}
 
-// methods for user schema
-userSchema.methods = {
-    authenticate: function (plainPassword:string) {
-      return this.securePassword(plainPassword) === this.encry_password;
-    },
-    securePassword: function (plainPassword:string) {
-      if (!plainPassword) return "";
-      try {
-        return crypto
-          .createHmac("sha256", this.salt)
-          .update(plainPassword)
-          .digest("hex");
-      } catch (error) {
-        return "";
-      }
-    },
-  };
+// Define the schema
+const UserSchema: Schema<IUser> = new Schema({
+  name: { type: String, required: false },
+  email: { type: String, required: true },
+  encry_password: { type: String, required: true },
+  role: { type: Number, required: true, default: 0 },
+  salt: { type: String, required: true }
+});
 
-// virtual field for password validation
-// userSchema
-// .virtual("password")
-// .set(function (password:string) {
-//   this._password = password;
-//   this.salt = uuidv4();
-//   this.encry_password = this.securePassword(password);
-// })
-// .get(function () {
-//   return this._password;
-// });
+// Virtual field for password
+UserSchema.virtual('password')
+  .set(function (this: IUser, password: string) {
+    this._password = password;
+    this.salt = uuidv4();
+    this.encry_password = this.securePassword(password);
+    console.log(this.encry_password,'pp')
+  })
+  .get(function (this: IUser) {
+    return this._password;
+  });
 
-  module.exports = mongoose.model("User", userSchema);
+// Method to encrypt the password
+UserSchema.methods.securePassword = function (this: IUser, plainPassword: string): string {
+  if (!plainPassword) return '';
+  try {
+    console.log(plainPassword,this.salt, 'zsfgsdjhbjhbjhjhbgplain', this)
+    return crypto.createHmac('sha256', this.salt).update(plainPassword).digest('hex')
+    
+  } catch (err) {
+    return '';
+  }
+};
+
+// Create the model
+const User = mongoose.model<IUser>('User', UserSchema);
+
+export default User;

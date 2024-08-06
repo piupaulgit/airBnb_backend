@@ -1,58 +1,73 @@
-const User = require("../models/user");
-const jsonToken = require("jsonwebtoken");
 import { Request, Response } from 'express';
-const { expressjwt: jwt } = require("express-jwt");
+import jwt from 'jsonwebtoken';
+import User from '../models/user';
+import { IUser } from '../models/user';
 
-// register controller
-exports.register = async (req:Request, res:Response) => {
+// Register controller
+export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     const newUser = await User.create(req.body);
 
     res.status(201).json({
-      status: "success",
-      message: "Congratulations! You are added.",
+      status: 'success',
+      message: 'Congratulations! You are added.',
       data: {
         user: newUser,
       },
     });
   } catch (err) {
-    console.log(err);
+    console.error(err);
+    res.status(500).json({
+      status: 'error',
+      message: 'An error occurred while registering the user.',
+    });
   }
 };
 
-exports.login = async (req:Request, res:Response) => {
-    const { email, password } = req.body;
-    try {
-      const user = await User.findOne({ email });
-  
-      if (!user) {
-        return res
-          .status(401)
-          .json({ status: 'error', message: "Authentication failed. User not found." });
-      }
-  
-      if (!user.authenticate(password)) {
-        return res.status(401).json({
-          status: 'error',
-          message: "Authentication failed. Email password does not match",
-        });
-      }
-  
-      const token = jsonToken.sign({ _id: user._id, email: user.email, role: user.role }, process.env.SECRETKEY);
-  
-      res.cookie("token", token);
-  
-      return res.status(200).json({
-        status: 'success',
-        message: `Congratulation! You are logged in now.`,
-        user: {
-          _id: user._id,
-          email: user.email,
-          role: user.role,
-          accessToken: token
-        },
+export const login = async (req: Request, res: Response): Promise<any> => {
+  const { email, password } = req.body;
+
+  try {
+    const user: IUser | null = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Authentication failed. User not found.',
       });
-    } catch (err) {
-      console.log(err);
     }
-  };
+
+    // Assuming the IUser interface has an authenticate method
+    if (!user.authenticate(password)) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Authentication failed. Email and password do not match.',
+      });
+    }
+
+    const token = jwt.sign(
+      { _id: user._id, email: user.email, role: user.role },
+      process.env.SECRETKEY as string, // Ensure SECRETKEY is defined in .env
+      { expiresIn: '1h' } // Optional: Set token expiration time
+    );
+
+    res.cookie('token', token, { httpOnly: true });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Congratulations! You are logged in now.',
+      user: {
+        _id: user._id,
+        email: user.email,
+        role: user.role,
+        accessToken: token,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      status: 'error',
+      message: 'An error occurred during login.',
+    });
+  }
+};
